@@ -24,6 +24,20 @@ const webProjectsConfig = [
 
 const imagePattern = /\.(png|jpe?g|webp|gif)$/i;
 
+function slugifySegment(value) {
+  return value
+    .normalize('NFC')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
+
+function encodeAssetFileName(fileName) {
+  return encodeURIComponent(fileName.normalize('NFC'));
+}
+
 function collectImageFiles(dir, rootDir = dir, acc = []) {
   if (!fs.existsSync(dir)) return acc;
 
@@ -44,17 +58,16 @@ function collectImageFiles(dir, rootDir = dir, acc = []) {
 
 function resolveDestName({ fileName, relativeDir }, usedNames) {
   if (!relativeDir || relativeDir === '.') {
-    usedNames.add(fileName);
-    return fileName;
+    const normalized = fileName.normalize('NFC');
+    usedNames.add(normalized);
+    return normalized;
   }
 
-  const folderSlug = relativeDir
-    .split(path.sep)
-    .filter(Boolean)
-    .join('-')
-    .replace(/\s+/g, '-');
+  const folderSlug = slugifySegment(relativeDir.split(path.sep).filter(Boolean).pop());
+  const fileSlug = slugifySegment(path.parse(fileName).name);
+  const ext = path.parse(fileName).ext.toLowerCase();
 
-  let destName = `${folderSlug}-${fileName}`;
+  let destName = `${folderSlug}-${fileSlug}${ext}`;
   if (!usedNames.has(destName)) {
     usedNames.add(destName);
     return destName;
@@ -67,8 +80,18 @@ function resolveDestName({ fileName, relativeDir }, usedNames) {
   return destName;
 }
 
-function syncCategory(src, dest, { recursive = false } = {}) {
+function clearFolderImages(folder) {
+  if (!fs.existsSync(folder)) return;
+  for (const file of fs.readdirSync(folder)) {
+    if (imagePattern.test(file)) {
+      fs.unlinkSync(path.join(folder, file));
+    }
+  }
+}
+
+function syncCategory(src, dest, { recursive = false, clean = false } = {}) {
   fs.mkdirSync(dest, { recursive: true });
+  if (clean) clearFolderImages(dest);
 
   const sources = recursive
     ? collectImageFiles(src)
@@ -101,7 +124,7 @@ function writePortfolioImagesManifest() {
   const out = {};
   for (const [key, folder] of Object.entries(publicFolders)) {
     const files = listPublicImages(folder);
-    out[key] = files.map((f) => `images/${path.basename(folder)}/${encodeURIComponent(f)}`);
+    out[key] = files.map((f) => `images/${path.basename(folder)}/${encodeAssetFileName(f)}`);
   }
 
   fs.writeFileSync(
@@ -123,7 +146,7 @@ function writeWebProjectsManifest() {
     }
     return {
       name,
-      image: `images/site-web/${encodeURIComponent(match)}`,
+      image: `images/site-web/${encodeAssetFileName(match)}`,
       url,
     };
   });
@@ -141,7 +164,8 @@ async function main() {
     const dest = publicFolders[key];
     if (!fs.existsSync(src)) continue;
     const recursive = key === 'graphisme';
-    copied += syncCategory(src, dest, { recursive });
+    const clean = key === 'graphisme';
+    copied += syncCategory(src, dest, { recursive, clean });
   }
 
   console.log(`Copied ${copied} source files to public/`);
