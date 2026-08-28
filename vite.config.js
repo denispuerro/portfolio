@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
-// Changez 'Porfolio' si votre dépôt GitHub a un autre nom
-const REPO_NAME = 'Porfolio';
+// Nom du dépôt GitHub Pages (denispuerro/portfolio)
+const REPO_NAME = 'portfolio';
 
 // Port unique pour dev ET preview — toujours http://localhost:5173/
 const PORT = 5173;
