@@ -10,7 +10,8 @@
     "images:sync": "node scripts/sync-portfolio-images.js",
     "images:optimize": "node scripts/optimize-portfolio-images.js",
     "preview": "npm run build && vite preview",
-    "preview:gh-pages": "npm run build:gh-pages && vite preview --base /portfolio/"
+    "preview:gh-pages": "GITHUB_PAGES=true PAGES_REPO=Porfolio vite build && vite preview --base /Porfolio/",
+    "preview:gh-pages:personal": "GITHUB_PAGES=true PAGES_REPO=portfolio vite build && vite preview --base /portfolio/"
   },
   "devDependencies": {
     "sharp": "^0.35.3",
