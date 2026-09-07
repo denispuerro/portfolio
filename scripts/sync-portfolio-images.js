@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { optimizeAllPublicImages } from './optimize-portfolio-images.js';
+import { fileURLToPath } from 'url';
+import { refreshManifests } from './manifest-utils.js';
 
 const sourceFolders = {
   photos: 'Images/Porfolio photos',
@@ -13,14 +14,6 @@ const publicFolders = {
   graphisme: 'public/images/graphisme',
   web: 'public/images/site-web',
 };
-
-const webProjectsConfig = [
-  { name: 'Swiss Seniors', stem: 'web_swissseniors', url: 'https://www.swissseniors.ch' },
-  { name: 'Welsh Stud', stem: 'web_welshstud', url: 'https://www.welshstud.ch' },
-  { name: "L'Agence Point Com", stem: 'web_lagencepointcom', url: 'https://www.lagencepointcom.ch' },
-  { name: 'CISO Salon', stem: 'web_cisosalon', url: 'https://www.cisosalon.ch' },
-  { name: 'Freelance Comptabilité', stem: 'web-Freelancecomptabilite', url: 'https://www.freelancecomptabilite.ch' },
-];
 
 const imagePattern = /\.(png|jpe?g|webp|gif)$/i;
 
@@ -113,72 +106,31 @@ function syncCategory(src, dest, { recursive = false, clean = false } = {}) {
   return sources.length;
 }
 
-function listPublicImages(folder) {
-  if (!fs.existsSync(folder)) return [];
-  return fs.readdirSync(folder)
-    .filter((file) => imagePattern.test(file))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-}
-
-function writePortfolioImagesManifest() {
-  const out = {};
-  for (const [key, folder] of Object.entries(publicFolders)) {
-    const files = listPublicImages(folder);
-    out[key] = files.map((f) => `images/${path.basename(folder)}/${encodeAssetFileName(f)}`);
-  }
-
-  fs.writeFileSync(
-    'src/portfolio-images.js',
-    `export const portfolioImages = ${JSON.stringify(out, null, 2)};\n`,
-  );
-
-  return out;
-}
-
-function writeWebProjectsManifest() {
-  const webDir = publicFolders.web;
-  const files = listPublicImages(webDir);
-
-  const projects = webProjectsConfig.map(({ name, stem, url }) => {
-    const match = files.find((file) => file.startsWith(stem));
-    if (!match) {
-      throw new Error(`Image web introuvable pour « ${name} » (${stem})`);
-    }
-    return {
-      name,
-      image: `images/site-web/${encodeAssetFileName(match)}`,
-      url,
-    };
-  });
-
-  fs.writeFileSync(
-    'src/web-projects.js',
-    `export const webProjects = ${JSON.stringify(projects, null, 2)};\n`,
-  );
-}
-
-async function main() {
+function syncSourcesToPublic() {
   let copied = 0;
 
   for (const [key, src] of Object.entries(sourceFolders)) {
     const dest = publicFolders[key];
     if (!fs.existsSync(src)) continue;
-    const recursive = key === 'graphisme';
-    const clean = key === 'graphisme';
-    copied += syncCategory(src, dest, { recursive, clean });
+    const recursive = key === 'graphisme' || key === 'photos';
+    copied += syncCategory(src, dest, { recursive, clean: true });
   }
 
   console.log(`Copied ${copied} source files to public/`);
-
-  await optimizeAllPublicImages();
-
-  const manifest = writePortfolioImagesManifest();
-  writeWebProjectsManifest();
-
-  console.log(`Synced: ${manifest.photos.length} photos, ${manifest.graphisme.length} graphisme, ${manifest.web.length} web`);
+  return copied;
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+async function main() {
+  syncSourcesToPublic();
+  refreshManifests();
+  console.log('Done. Run npm run images:optimize only when you need WebP compression.');
+}
+
+const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

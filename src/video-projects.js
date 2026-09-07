@@ -36,10 +36,6 @@ export const videoProjects = [
     url: 'https://youtu.be/rwduhyh3wR4',
   },
   {
-    title: 'Prêt à pulvériser vos objectifs ?',
-    url: 'https://youtu.be/qmVFq7GOJEk',
-  },
-  {
     title: "Crowdfunding plantation d'arbres",
     url: 'https://youtu.be/21tG0iBt_y8',
   },

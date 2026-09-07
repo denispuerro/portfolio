@@ -6,9 +6,19 @@
     <title>Portfolio - Denis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Manrope:wght@400;500;600&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600;6..96,700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Manrope:wght@400;500;600&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+    <header class="pv-header">
+        <a href="#" class="pv-header-logo" aria-label="Denis Puerro — Accueil">
+            <img src="/images/logo-dp.png" alt="Logo Denis Puerro" width="120" height="48">
+        </a>
+        <div class="pv-header-cta">
+            <a class="pv-btn" href="tel:+41789517764">Appeler</a>
+            <a class="pv-btn" href="mailto:puerrodenis@gmail.com"><span class="pv-btn-text-full">Envoyer un mail</span><span class="pv-btn-text-short">Mail</span></a>
+        </div>
+    </header>
 
     <div class="custom-cursor"></div>
     <div class="camera-flash"></div>
@@ -25,28 +35,39 @@
             <div class="pv-hero-inner">
                 <div class="pv-hero-text">
                     <div class="title-wrapper">
-                        <h1 class="flash-typo">Bienvenue dans l'univers de Denis.</h1>
+                        <h1 class="flash-typo">Bienvenue dans mon univers.</h1>
                     </div>
-                    <p class="pv-story">Basé dans la Broye depuis plus de 15 ans, je suis un homme de terrain.</p>
-                    <p class="pv-dim">Tournez la roue pour explorer mon univers.</p>
+                    <p class="pv-story">J'ai un parcours atypique qui m'a appris à comprendre rapidement les gens, les structures et leurs besoins. Je suis curieux, je m'adapte à n'importe quel environnement, et je le fais toujours avec passion. Mon expérience variée me permet de saisir les problématiques dans presque n'importe quel domaine.</p>
                 </div>
-                
-                <div class="wheel-trigger" data-target-value="PHOTOS" data-scroll-to="motion-photos">
-                    <div class="wheel-window">
-                        <div class="wheel-reel"></div>
-                    </div>
-                    <div class="spin-instruction">CLIQUEZ POUR LANCER LA ROUE</div>
-                </div>
+
+                <nav class="pv-skills" aria-label="Domaines de compétences">
+                    <a class="pv-skill-card" href="#motion-photos" aria-label="Photos">
+                        <img class="pv-skill-img" src="/images/menus/menu-photos.png" alt="" width="320" height="200" decoding="async">
+                    </a>
+                    <a class="pv-skill-card" href="#motion-video" aria-label="Vidéos">
+                        <img class="pv-skill-img" src="/images/menus/menu-video.png" alt="" width="320" height="200" decoding="async">
+                    </a>
+                    <a class="pv-skill-card" href="#motion-web" aria-label="Sites web">
+                        <img class="pv-skill-img" src="/images/menus/menu-web.png" alt="" width="320" height="200" decoding="async">
+                    </a>
+                    <a class="pv-skill-card" href="#motion-design" aria-label="Graphisme">
+                        <img class="pv-skill-img" src="/images/menus/menu-graphisme.png" alt="" width="320" height="200" decoding="async">
+                    </a>
+                </nav>
             </div>
         </section>
 
         <section id="motion-photos" class="pv-portfolio-section photo-zone">
-            <h2>Portfolio Photos</h2>
-            <p class="carousel-hint-desktop">Faites glisser de gauche à droite, ou laissez-vous surprendre.</p>
-            <div class="pv-carousel-wrap pv-carousel-flat">
-                <div class="pv-carousel-container"></div>
+            <div class="pv-section-head">
+                <h2>Portfolio Photos</h2>
+                <p class="pv-section-tagline">Reportages, shootings, événements — cliquez pour agrandir.</p>
             </div>
-            <button class="spin-trigger-btn">Choisissez une photo aléatoire</button>
+            <div class="pv-gallery" data-gallery="photos">
+                <div class="pv-gallery-row pv-gallery-row--ltr" data-speed="118"></div>
+                <div class="pv-gallery-row pv-gallery-row--rtl" data-speed="108"></div>
+                <div class="pv-gallery-row pv-gallery-row--ltr pv-gallery-row--slow" data-speed="135"></div>
+            </div>
+            <button type="button" class="pv-spotlight-btn" data-gallery-target="photos">Un projet photo au hasard</button>
         </section>
 
         <section class="pv-transition-zone pv-transition-explore">
@@ -56,23 +77,20 @@
                 <div class="title-wrapper title-wrapper--block">
                     <h2 class="hand-title">Continuer l'exploration ?</h2>
                 </div>
-                <p class="pv-story">Mon parcours de danseur et de professeur de danse m'a inculqué la rigueur du mouvement et l'importance d'une image qui percute dès le premier regard.</p>
-                <div class="wheel-trigger" data-target-value="VIDÉO" data-scroll-to="motion-video">
-                    <div class="wheel-window">
-                        <div class="wheel-reel"></div>
-                    </div>
-                    <div class="spin-instruction">RETOURNER LA ROUE</div>
-                </div>
+                <p class="pv-story">La danse m'a appris à créer des moments, des espaces où les gens se sentent bien ensemble. Quand tu fais danser un groupe, tu dois vraiment comprendre l'énergie, ce qui met les gens à l'aise, ce qui les inspire. Ça t'enseigne l'humain, finalement. Aujourd'hui quand je crée du visuel, une vidéo, un montage, j'utilise exactement la même psychologie. Je sais instinctivement comment faire passer une émotion en trois secondes. Les formations en Motion Design c'est la base, mais c'est cette compréhension de l'humain qui fait vraiment la différence.</p>
+                <a class="pv-btn pv-btn--section" href="#motion-video">Voir les vidéos</a>
             </div>
         </section>
 
         <section id="motion-video" class="pv-portfolio-section video-zone">
-            <h2>Productions Vidéo</h2>
-            <p class="carousel-hint-desktop">Faites glisser de gauche à droite, ou laissez-vous surprendre.</p>
-            <div class="pv-carousel-wrap pv-carousel-flat pv-carousel-video">
-                <div class="pv-carousel-container"></div>
+            <div class="pv-section-head">
+                <h2>Productions Vidéo</h2>
+                <p class="pv-section-tagline">Motion, reportages, contenus réseaux — cliquez pour voir sur YouTube.</p>
             </div>
-            <button class="spin-trigger-btn">Choisissez une vidéo aléatoire</button>
+            <div class="pv-gallery" data-gallery="video">
+                <div class="pv-gallery-row pv-gallery-row--ltr" data-speed="74"></div>
+            </div>
+            <button type="button" class="pv-spotlight-btn" data-gallery-target="video">Une vidéo au hasard</button>
         </section>
 
         <section class="pv-transition-zone pv-transition-web">
@@ -82,23 +100,20 @@
                 <div class="title-wrapper title-wrapper--block">
                     <h2 class="hand-title">Poursuivre la visite ?</h2>
                 </div>
-                <p class="pv-story">En dehors de mon travail, j'élève des chevaux Franches-Montagnes et des Welsh Cobs. Cette passion m'impose patience, rigueur et un sens du détail sans faille. On ne triche pas avec un cheval.</p>
-                <div class="wheel-trigger" data-target-value="WEB & APPLI" data-scroll-to="motion-web">
-                    <div class="wheel-window">
-                        <div class="wheel-reel"></div>
-                    </div>
-                    <div class="spin-instruction">RETOURNER LA ROUE</div>
-                </div>
+                <p class="pv-story">J'élève des chevaux. Ça t'apprend qu'on ne bâcle rien, que la structure et la patience ça fait tout. Un cheval bien construit prend du temps, comme un site bien pensé. Quand je crée, je pense à ce que quelqu'un va vraiment ressentir, chaque détail compte. C'est un processus où on construit quelque chose qui doit fonctionner pour les gens.</p>
+                <a class="pv-btn pv-btn--section" href="#motion-web">Voir les sites web</a>
             </div>
         </section>
 
         <section id="motion-web" class="pv-portfolio-section web-zone">
-            <h2>Sites Internet & Applications</h2>
-            <p style="color:var(--txt);">Aperçu des plateformes et architectures SaaS.</p>
-            <div class="pv-carousel-wrap pv-carousel-flat">
-                <div class="pv-carousel-container"></div>
+            <div class="pv-section-head">
+                <h2>Sites Internet & Applications</h2>
+                <p class="pv-section-tagline">Plateformes, SaaS, vitrines — cliquez pour visiter le site.</p>
             </div>
-            <button class="spin-trigger-btn">Choisissez un site web aléatoire</button>
+            <div class="pv-gallery" data-gallery="web">
+                <div class="pv-gallery-row pv-gallery-row--ltr" data-speed="76"></div>
+            </div>
+            <button type="button" class="pv-spotlight-btn" data-gallery-target="web">Un site au hasard</button>
         </section>
 
         <section class="pv-transition-zone pv-transition-design">
@@ -108,39 +123,82 @@
                 <div class="title-wrapper title-wrapper--block">
                     <h2 class="hand-title">Dernière étape ?</h2>
                 </div>
-                <p class="pv-story">Je ne travaille pas pour vivre, mais je vis pour mon travail.</p>
-                <div class="wheel-trigger" data-target-value="GRAPHISME" data-scroll-to="motion-design">
-                    <div class="wheel-window">
-                        <div class="wheel-reel"></div>
-                    </div>
-                    <div class="spin-instruction">RETOURNER LA ROUE</div>
-                </div>
+                <p class="pv-story">Je ne travaille pas pour vivre, je vis pour ce que je fais. Chaque projet, c'est une vraie question, une responsabilité. Qu'est-ce qu'on essaie vraiment d'accomplir et comment on le fait de manière honnête, claire, qui fait vraiment sense pour les gens. Je ne fais rien juste pour remplir une case. Pas de superflu. Juste de la substance et de la passion, toujours.</p>
+                <a class="pv-btn pv-btn--section" href="#motion-design">Voir le graphisme</a>
             </div>
         </section>
 
         <section id="motion-design" class="pv-portfolio-section design-zone">
-            <h2>Identités Graphiques & Design</h2>
-            <p style="color:var(--txt);">Créations de marques, logos et chartes visuelles.</p>
-            <div class="pv-carousel-wrap pv-carousel-flat">
-                <div class="pv-carousel-container"></div>
+            <div class="pv-section-head">
+                <h2>Identités Graphiques & Design</h2>
+                <p class="pv-section-tagline">Logos, chartes, supports print & digital — cliquez pour agrandir.</p>
             </div>
-            <button class="spin-trigger-btn">Choisissez une création graphique aléatoire</button>
+            <div class="pv-gallery" data-gallery="design">
+                <div class="pv-gallery-row pv-gallery-row--ltr" data-speed="72"></div>
+                <div class="pv-gallery-row pv-gallery-row--rtl" data-speed="84"></div>
+            </div>
+            <button type="button" class="pv-spotlight-btn" data-gallery-target="design">Une créa au hasard</button>
         </section>
 
-        <section class="pv-contact">
+        <section id="contact" class="pv-contact">
             <div class="pv-contact-bg" aria-hidden="true"></div>
             <div class="pv-contact-overlay" aria-hidden="true"></div>
-            <div class="pv-contact-inner">
-                <div class="title-wrapper title-wrapper--block">
-                    <h2 class="hand-title">Envie de me contacter ?</h2>
-                </div>
-                <div class="pv-contact-links">
-                    <a class="pv-contact-link" href="mailto:denispuerro@icloud.com">denispuerro@icloud.com</a>
-                    <a class="pv-contact-link" href="tel:+4178951774">+4178951774</a>
+            <div class="pv-contact-layout">
+                <div class="pv-contact-photo" aria-hidden="true"></div>
+                <div class="pv-contact-panel">
+                    <h2 class="pv-contact-name">Denis Pürro</h2>
+                    <ul class="pv-contact-traits" aria-label="Qualités professionnelles">
+                        <li>Passionné</li>
+                        <li>Flexible</li>
+                        <li>Engagé</li>
+                        <li>Esprit d'équipe</li>
+                        <li>Autonome</li>
+                        <li>Bon sens de la communication</li>
+                    </ul>
+                    <p class="pv-contact-intro">Photo, vidéo, web et design pour renforcer votre communication.</p>
+                    <a class="pv-btn pv-contact-cta" href="mailto:puerrodenis@gmail.com?subject=Demande%20d'entretien">Demander un entretien</a>
                 </div>
             </div>
         </section>
     </main>
+
+    <footer class="pv-footer">
+        <div class="pv-footer-inner">
+            <div class="pv-footer-brand">
+                <a class="pv-footer-logo" href="#" aria-label="Denis Puerro, accueil">
+                    <img src="/images/logo-dp.png" alt="" width="96" height="38" decoding="async">
+                </a>
+                <p class="pv-footer-tagline">Photo · Vidéo · Web · Design</p>
+                <p class="pv-footer-bio">Créatif passionné</p>
+            </div>
+
+            <nav class="pv-footer-nav" aria-label="Navigation du portfolio">
+                <p class="pv-footer-heading">Portfolio</p>
+                <ul>
+                    <li><a href="#motion-photos">Photos</a></li>
+                    <li><a href="#motion-video">Vidéos</a></li>
+                    <li><a href="#motion-web">Sites web</a></li>
+                    <li><a href="#motion-design">Graphisme</a></li>
+                </ul>
+            </nav>
+
+            <div class="pv-footer-contact">
+                <p class="pv-footer-heading">Contact</p>
+                <ul>
+                    <li><a href="mailto:puerrodenis@gmail.com">puerrodenis@gmail.com</a></li>
+                    <li><a href="tel:+41789517764">+41 78 951 77 64</a></li>
+                </ul>
+                <div class="pv-footer-cta">
+                    <a class="pv-btn pv-btn--footer" href="mailto:puerrodenis@gmail.com?subject=Demande%20d'entretien">Demander un entretien</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="pv-footer-bottom">
+            <p>© 2026 Denis Puerro. Tous droits réservés.</p>
+            <a class="pv-footer-top" href="#">Retour en haut</a>
+        </div>
+    </footer>
 
     <script type="module" src="/src/main.js"></script>
 </body>

@@ -2,11 +2,34 @@ import './style.css';
 import { portfolioImages } from './portfolio-images.js';
 import { webProjects } from './web-projects.js';
 import { videoProjects } from './video-projects.js';
+import {
+  buildGalleryRows,
+  assignMixedDisplayFormats,
+  splitVideoRowsBalanced,
+  expandItems,
+  initGalleryRows,
+  pickRandomGalleryItem,
+  splitAcrossRows,
+} from './gallery-rows.js';
+import { imageStemFromPath, resolveImageUrls } from './image-assets.js';
 
 // Portfolio carousels populated at init
 
 function assetUrl(path) {
   return `${import.meta.env.BASE_URL}${path}`;
+}
+
+function preferWebpAssets(paths = []) {
+  const webpStems = new Set(
+    paths
+      .filter((src) => src.toLowerCase().endsWith('.webp'))
+      .map((src) => src.replace(/\.webp$/i, '')),
+  );
+  return paths.filter((src) => {
+    if (src.toLowerCase().endsWith('.webp')) return true;
+    const stem = src.replace(/\.(png|jpe?g|gif)$/i, '');
+    return !webpStems.has(stem);
+  });
 }
 
 const BACKGROUNDS = [
@@ -70,12 +93,53 @@ function youtubeId(urlOrId) {
   return match ? match[1] : urlOrId;
 }
 
+function isYoutubeShort(url) {
+  return /youtube\.com\/shorts\//i.test(url);
+}
+
 function youtubeWatchUrl(id) {
   return `https://www.youtube.com/watch?v=${id}`;
 }
 
-function youtubeThumbUrl(id) {
-  return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+function youtubeThumbCandidates(id, { isShort = false } = {}) {
+  if (isShort) {
+    // oardefault often 404s on Shorts; maxresdefault/hqdefault are reliable
+    return [
+      `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+      `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+    ];
+  }
+  return [
+    `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    `https://i.ytimg.com/vi/${id}/sddefault.jpg`,
+  ];
+}
+
+function youtubeThumbUrl(id, { isShort = false } = {}) {
+  return youtubeThumbCandidates(id, { isShort })[0];
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function pickShuffleSequence(itemCount, fromIndex, toIndex, steps = 11) {
+  const sequence = [];
+  if (itemCount <= 1) return [toIndex];
+
+  for (let i = 0; i < steps - 1; i += 1) {
+    let idx = Math.floor(Math.random() * itemCount);
+    let guard = 0;
+    while ((idx === fromIndex || idx === toIndex || idx === sequence[sequence.length - 1]) && guard < 8) {
+      idx = Math.floor(Math.random() * itemCount);
+      guard += 1;
+    }
+    sequence.push(idx);
+  }
+  sequence.push(toIndex);
+  return sequence;
 }
 
 function waitForCarouselItem(item, timeoutMs = 5000) {
@@ -136,7 +200,7 @@ function getCarouselImageSrc(img) {
   return img.getAttribute('src') || img.getAttribute('data-src') || '';
 }
 
-function handleCarouselTap(item, lightbox, lightboxImg) {
+function handleCarouselTap(item, openLightbox) {
   if (!item?.classList.contains('is-active')) return;
 
   const itemType = item.getAttribute('data-type');
@@ -151,10 +215,7 @@ function handleCarouselTap(item, lightbox, lightboxImg) {
   ensureCarouselImage(item);
   const img = item.querySelector('img:not(.pv-video-thumb)');
   const src = getCarouselImageSrc(img);
-  if (src && lightbox && lightboxImg) {
-    lightboxImg.setAttribute('src', src);
-    lightbox.classList.add('is-open');
-  }
+  if (src) openLightbox(src);
 }
 
 function preloadCarouselNeighbors(items, modIndex) {
@@ -208,13 +269,16 @@ function setupCarouselSectionPreload(section) {
 
 function buildCarouselItems(container, images, type, { eagerCount = 8 } = {}) {
   container.innerHTML = images.map((src, index) => {
-    const fileName = decodeURIComponent(src.split('/').pop().replace(/\.[^.]+$/, ''));
+    const { src: primary, fallbacks } = resolveImageUrls(src, assetUrl);
+    const fileName = imageStemFromPath(src);
     const alt = `${type} ${fileName}`;
-    const url = assetUrl(src);
+    const fallbackAttr = fallbacks.length
+      ? ` data-src-fallbacks="${fallbacks.map(encodeURI).join('|')}"`
+      : '';
     const eager = index < eagerCount;
     const imgTag = eager
-      ? `<img src="${url}" alt="${alt}" decoding="async" fetchpriority="${index === 0 ? 'high' : 'auto'}">`
-      : `<img data-src="${url}" alt="${alt}" decoding="async">`;
+      ? `<img src="${primary}" alt="${alt}" decoding="async" fetchpriority="${index === 0 ? 'high' : 'auto'}"${fallbackAttr}>`
+      : `<img data-src="${primary}" alt="${alt}" decoding="async"${fallbackAttr}>`;
     return `<div class="pv-carousel-item" data-type="${type}">${imgTag}</div>`;
   }).join('');
 }
@@ -235,11 +299,12 @@ function buildWebCarouselItems(container, projects) {
 function buildVideoCarouselItems(container, projects) {
   container.innerHTML = projects.map(({ title, url }) => {
     const id = youtubeId(url);
+    const isShort = isYoutubeShort(url);
     const watchUrl = youtubeWatchUrl(id);
     return (
       `<div class="pv-carousel-item" data-type="video" data-video-id="${id}" data-url="${watchUrl}">` +
       `<div class="pv-video-media">` +
-      `<img class="pv-video-thumb" src="${youtubeThumbUrl(id)}" alt="${title}" decoding="async">` +
+      `<img class="pv-video-thumb" src="${youtubeThumbUrl(id, { isShort })}" alt="${title}" decoding="async">` +
       `</div>` +
       `<span class="pv-video-label">${title}</span>` +
       `</div>`
@@ -274,33 +339,211 @@ function setActiveVideoPreview(items, activeIndex) {
   });
 }
 
-function init() {
-  document.querySelectorAll('.hand-title').forEach((title) => {
-    const revealTitle = () => title.classList.add('is-revealed');
-    if (!('IntersectionObserver' in window)) {
-      revealTitle();
-      return;
+function buildImageGalleryItem(relativePath, altPrefix, { eager = false } = {}) {
+  const { src, fallbacks } = resolveImageUrls(relativePath, assetUrl);
+  const fileName = imageStemFromPath(relativePath);
+  return {
+    type: 'image',
+    src,
+    srcFallbacks: fallbacks,
+    alt: `${altPrefix} ${fileName}`,
+    eager,
+  };
+}
+
+function buildPhotoGalleryItems(images) {
+  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Photo', { eager: true }));
+}
+
+function buildDesignGalleryItems(images) {
+  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Graphisme', { eager: true }));
+}
+
+function buildWebGalleryItems(projects) {
+  return projects.map(({ name, image, url }) => {
+    const { src, fallbacks } = resolveImageUrls(image, assetUrl);
+    return {
+      type: 'web',
+      src,
+      srcFallbacks: fallbacks,
+      url,
+      label: name,
+      alt: name,
+      format: 'landscape',
+      formatLocked: true,
+      eager: true,
+    };
+  });
+}
+
+function buildVideoGalleryItems(projects) {
+  return projects.map(({ title, url }) => {
+    const id = youtubeId(url);
+    const isShort = isYoutubeShort(url);
+    const thumbs = youtubeThumbCandidates(id, { isShort });
+    return {
+      type: 'video',
+      src: thumbs[0],
+      thumbFallbacks: thumbs.slice(1),
+      url: youtubeWatchUrl(id),
+      videoId: id,
+      alt: title,
+      format: isShort ? 'portrait' : 'landscape',
+      formatLocked: true,
+      eager: true,
+    };
+  });
+}
+
+function populateGallery(gallery, items, rowCount, { mixFormats = false, mixVideoFormats = false } = {}) {
+  if (!items.length || !rowCount) return;
+  const minPerRow = Math.max(items.length, rowCount * 6);
+  let rowItems;
+  if (mixVideoFormats) {
+    rowItems = splitVideoRowsBalanced(items, rowCount, minPerRow);
+  } else {
+    rowItems = splitAcrossRows(expandItems(items, minPerRow), rowCount);
+  }
+  if (mixFormats) rowItems = assignMixedDisplayFormats(rowItems);
+  buildGalleryRows(gallery, rowItems, { alternateDuplicateFormats: mixFormats });
+}
+
+function createLightboxController(lightbox, lightboxImg) {
+  let savedScrollY = 0;
+
+  function open(src, preserveScrollY) {
+    if (!src || !lightbox || !lightboxImg) return;
+    savedScrollY = typeof preserveScrollY === 'number' ? preserveScrollY : window.scrollY;
+    lightboxImg.setAttribute('src', src);
+    lightbox.classList.add('is-open');
+    document.body.classList.add('is-lightbox-open');
+    document.body.style.top = `-${savedScrollY}px`;
+  }
+
+  function close() {
+    if (!lightbox?.classList.contains('is-open')) return;
+    lightbox.classList.remove('is-open');
+    document.body.classList.remove('is-lightbox-open');
+    document.body.style.top = '';
+    window.scrollTo(0, savedScrollY);
+  }
+
+  return { open, close };
+}
+
+function openGalleryItem(item, handlers, { preserveScrollY } = {}) {
+  if (!item) return;
+  const type = item.dataset.type;
+  if (type === 'web' && item.dataset.url) {
+    handlers.onWeb?.(item.dataset.url);
+    return;
+  }
+  if (type === 'video') {
+    const url = item.dataset.url
+      || (item.dataset.videoId ? `https://www.youtube.com/watch?v=${item.dataset.videoId}` : '');
+    if (url) handlers.onVideo?.(url);
+    return;
+  }
+  const img = item.querySelector('img');
+  const src = item.dataset.fullSrc || img?.getAttribute('src') || img?.getAttribute('data-src');
+  if (src) handlers.onImage?.(src, preserveScrollY);
+}
+
+function initGalleries({ openLightbox, closeLightbox }) {
+  const handlers = {
+    onImage: (src, preserveScrollY) => openLightbox(src, preserveScrollY),
+    onWeb: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onVideo: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+  };
+
+  document.querySelectorAll('.pv-gallery').forEach((gallery) => {
+    const kind = gallery.dataset.gallery;
+    const rowCount = gallery.querySelectorAll('.pv-gallery-row').length;
+
+    if (kind === 'photos' && portfolioImages.photos?.length) {
+      populateGallery(gallery, buildPhotoGalleryItems(portfolioImages.photos), rowCount, { mixFormats: true });
+    } else if (kind === 'video' && videoProjects.length) {
+      populateGallery(gallery, buildVideoGalleryItems(videoProjects), rowCount, { mixVideoFormats: true });
+    } else if (kind === 'web' && webProjects.length) {
+      populateGallery(gallery, buildWebGalleryItems(webProjects), rowCount);
+    } else if (kind === 'design' && portfolioImages.graphisme?.length) {
+      populateGallery(gallery, buildDesignGalleryItems(portfolioImages.graphisme), rowCount, { mixFormats: true });
     }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        revealTitle();
-        observer.unobserve(entry.target);
-      });
-    }, { threshold: 0.35 });
-    observer.observe(title);
+
+    initGalleryRows(gallery, handlers);
   });
 
-  const categories = ['PHOTOS', 'VIDÉO', 'WEB & APPLI', 'GRAPHISME'];
-  const itemHeight = 80;
+  document.querySelectorAll('.pv-spotlight-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const preserveScrollY = window.scrollY;
+      const target = btn.dataset.galleryTarget;
+      const gallery = document.querySelector(`.pv-gallery[data-gallery="${target}"]`);
+      if (!gallery) return;
+      const item = pickRandomGalleryItem(gallery);
+      if (!item) return;
+      openGalleryItem(item, handlers, { preserveScrollY });
+    });
+  });
+
+  return { closeLightbox };
+}
+
+function initTransitionBlocks() {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll('.pv-transition-inner').forEach((inner) => {
+    const zone = inner.closest('.pv-transition-zone') || inner;
+
+    if (reducedMotion) {
+      inner.classList.add('is-in-view');
+      return;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      inner.classList.add('is-in-view');
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          inner.classList.remove('is-in-view');
+          void inner.offsetWidth;
+          inner.classList.add('is-in-view');
+          return;
+        }
+        inner.classList.remove('is-in-view');
+      });
+    }, { threshold: 0.05, rootMargin: '35% 0px 35% 0px' });
+
+    observer.observe(zone);
+  });
+}
+
+function init() {
+  initTransitionBlocks();
 
   const photoCarousel = document.querySelector('#motion-photos .pv-carousel-container');
   const videoCarousel = document.querySelector('#motion-video .pv-carousel-container');
   const webCarousel = document.querySelector('#motion-web .pv-carousel-container');
   const designCarousel = document.querySelector('#motion-design .pv-carousel-container');
 
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxClose = document.getElementById('lightboxClose');
+  const { open: openLightbox, close: closeLightbox } = createLightboxController(lightbox, lightboxImg);
+
+  initGalleries({ openLightbox, closeLightbox });
+
+  if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
+  if (lightbox) lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
+  /* Legacy flat carousels — kept only if markup still present */
   if (photoCarousel && portfolioImages.photos?.length) {
-    buildCarouselItems(photoCarousel, portfolioImages.photos, 'image');
+    buildCarouselItems(photoCarousel, preferWebpAssets(portfolioImages.photos), 'image');
   }
   if (videoCarousel && videoProjects.length) {
     buildVideoCarouselItems(videoCarousel, videoProjects);
@@ -309,34 +552,38 @@ function init() {
     buildWebCarouselItems(webCarousel, webProjects);
   }
   if (designCarousel && portfolioImages.graphisme?.length) {
-    buildCarouselItems(designCarousel, portfolioImages.graphisme, 'image', { eagerCount: portfolioImages.graphisme.length });
+    const graphismeImages = preferWebpAssets(portfolioImages.graphisme);
+    buildCarouselItems(designCarousel, graphismeImages, 'image', { eagerCount: graphismeImages.length });
   }
 
-  document.querySelectorAll('.pv-portfolio-section').forEach((section) => {
-    setupCarouselSectionPreload(section);
-  });
+  if (document.querySelector('.pv-carousel-container')) {
+    document.querySelectorAll('.pv-portfolio-section').forEach((section) => {
+      setupCarouselSectionPreload(section);
+    });
+  }
 
   const cursor = document.querySelector('.custom-cursor');
-
-  document.querySelectorAll('.wheel-reel').forEach((reel) => {
-    let htmlContent = '';
-    for (let i = 0; i < 15; i++) {
-      categories.forEach((cat) => {
-        htmlContent += `<div class="reel-item">${cat}</div>`;
-      });
-    }
-    reel.innerHTML = htmlContent;
-  });
 
   window.addEventListener('mousemove', (e) => {
     cursor.style.left = e.clientX + 'px';
     cursor.style.top = e.clientY + 'px';
   });
 
-  document.querySelectorAll('.wheel-trigger').forEach((el) => {
-    el.addEventListener('mouseenter', () => { document.body.className = 'grab-mode'; });
-    el.addEventListener('mouseleave', () => { document.body.className = ''; });
+
+  document.querySelectorAll('.pv-skill-card').forEach((card) => {
+    const href = card.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    const zoneClass = {
+      '#motion-photos': 'camera-mode',
+      '#motion-video': 'video-mode',
+      '#motion-web': 'web-mode',
+      '#motion-design': 'design-mode',
+    }[href];
+    if (!zoneClass) return;
+    card.addEventListener('mouseenter', () => { document.body.className = zoneClass; });
+    card.addEventListener('mouseleave', () => { document.body.className = ''; });
   });
+
   setupCursorZone('.photo-zone', 'camera-mode');
   setupCursorZone('.video-zone', 'video-mode');
   setupCursorZone('.web-zone', 'web-mode');
@@ -349,61 +596,6 @@ function init() {
       zone.addEventListener('mouseleave', () => { document.body.className = ''; });
     }
   }
-
-  document.querySelectorAll('.wheel-trigger').forEach((trigger) => {
-    let isSpinningHero = false;
-    trigger.addEventListener('click', () => {
-      if (isSpinningHero) return;
-      isSpinningHero = true;
-
-      const reel = trigger.querySelector('.wheel-reel');
-      const targetValue = trigger.getAttribute('data-target-value');
-      const targetSectionId = trigger.getAttribute('data-scroll-to');
-      const items = reel.querySelectorAll('.reel-item');
-
-      items.forEach((it) => { it.className = 'reel-item'; });
-
-      let targetIndex = 45;
-      for (let i = items.length - 1; i >= 0; i--) {
-        if (items[i].textContent === targetValue) {
-          targetIndex = i;
-          break;
-        }
-      }
-
-      const finalPosition = -(targetIndex * itemHeight);
-      reel.style.filter = 'blur(5px)';
-
-      const anim = reel.animate([
-        { transform: 'translateY(0px)' },
-        { transform: `translateY(${finalPosition}px)` },
-      ], {
-        duration: 4800,
-        easing: 'cubic-bezier(0.05, 0.9, 0.1, 1)',
-        fill: 'forwards',
-      });
-
-      setTimeout(() => {
-        reel.style.filter = 'blur(0px)';
-        items[targetIndex].classList.add('highlight');
-      }, 4000);
-
-      anim.onfinish = () => {
-        const flash = document.querySelector('.camera-flash');
-        flash.style.opacity = '1';
-        setTimeout(() => {
-          flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400 }).onfinish = () => { flash.style.opacity = '0'; };
-          const targetSection = document.getElementById(targetSectionId);
-          if (targetSection) targetSection.scrollIntoView({ behavior: 'smooth' });
-
-          setTimeout(() => {
-            const targetCarousel = targetSection.querySelector('.pv-carousel-container');
-            if (targetCarousel && targetCarousel.spinFunction) targetCarousel.spinFunction();
-          }, 600);
-        }, 40);
-      };
-    });
-  });
 
   function initFlatCarousel(wrap, options = {}) {
     const container = wrap.querySelector('.pv-carousel-container');
@@ -464,10 +656,21 @@ function init() {
       hasDragged = false;
     });
 
-    function spinCarouselAleatoire() {
+    function pauseVideoPreviews() {
+      items.forEach((item) => {
+        const media = item.querySelector('.pv-video-media');
+        if (!media) return;
+        const iframe = media.querySelector('iframe');
+        const thumb = media.querySelector('.pv-video-thumb');
+        if (iframe) iframe.remove();
+        if (thumb) thumb.classList.remove('is-hidden');
+      });
+    }
+
+    async function spinCarouselAleatoire() {
       if (isSpinning) return;
       isSpinning = true;
-      wrap.classList.add('is-carousel-busy');
+      wrap.classList.add('is-shuffling');
 
       let pools = [];
       items.forEach((_, i) => { if (!historySeen.includes(i)) pools.push(i); });
@@ -476,19 +679,52 @@ function init() {
         items.forEach((_, i) => pools.push(i));
       }
 
-      const targetIndex = pools[Math.floor(Math.random() * pools.length)];
+      const fromIndex = ((currentIndex % items.length) + items.length) % items.length;
+      let targetIndex = pools[Math.floor(Math.random() * pools.length)];
+      if (targetIndex === fromIndex && pools.length > 1) {
+        targetIndex = pools.find((i) => i !== fromIndex) ?? targetIndex;
+      }
       historySeen.push(targetIndex);
-      ensureCarouselImage(items[targetIndex]);
 
-      const spinDuration = 2200 + Math.floor(Math.random() * 900);
-      window.setTimeout(() => {
-        waitForCarouselItem(items[targetIndex]).then(() => {
-          currentIndex = targetIndex;
-          updateCarousel();
-          wrap.classList.remove('is-carousel-busy');
-          isSpinning = false;
-        });
-      }, spinDuration);
+      const sequence = pickShuffleSequence(items.length, fromIndex, targetIndex);
+      const flying = new Set(sequence);
+      sequence.forEach((index) => ensureCarouselImage(items[index]));
+      ensureCarouselImage(items[fromIndex]);
+      pauseVideoPreviews();
+
+      const front = items[fromIndex];
+      const deckCards = [];
+
+      try {
+        front.classList.add('is-shuffle-front');
+
+        for (let i = 0; i < items.length && deckCards.length < 2; i += 1) {
+          if (i === fromIndex || flying.has(i)) continue;
+          items[i].classList.add(`is-deck-${deckCards.length + 1}`);
+          ensureCarouselImage(items[i]);
+          deckCards.push(items[i]);
+        }
+
+        const stepMs = 90;
+        for (let s = 0; s < sequence.length; s += 1) {
+          const item = items[sequence[s]];
+          const isLast = s === sequence.length - 1;
+          item.classList.add('is-shuffle-card', isLast ? 'is-riffle-land' : (s % 2 === 0 ? 'is-riffle-right' : 'is-riffle-left'));
+          await wait(isLast ? 280 : stepMs);
+          if (!isLast) {
+            item.classList.remove('is-shuffle-card', 'is-riffle-left', 'is-riffle-right');
+          }
+        }
+
+        currentIndex = targetIndex;
+        updateCarousel();
+      } finally {
+        front.classList.remove('is-shuffle-front');
+        deckCards.forEach((card, index) => card.classList.remove(`is-deck-${index + 1}`));
+        items[targetIndex].classList.remove('is-shuffle-card', 'is-riffle-land', 'is-riffle-left', 'is-riffle-right');
+        wrap.classList.remove('is-shuffling');
+        isSpinning = false;
+      }
     }
 
     if (spinBtn) spinBtn.addEventListener('click', spinCarouselAleatoire);
@@ -566,22 +802,16 @@ function init() {
     updateCarousel();
   }
 
-  const lightbox = document.getElementById('lightbox');
-  const lightboxImg = document.getElementById('lightboxImg');
-  const lightboxClose = document.getElementById('lightboxClose');
-
-  const onCarouselTap = (item) => handleCarouselTap(item, lightbox, lightboxImg);
-
-  document.querySelectorAll('.pv-carousel-flat:not(.pv-carousel-video)').forEach((wrap) => {
-    initFlatCarousel(wrap, { onTap: onCarouselTap });
-  });
-  document.querySelectorAll('.pv-carousel-video').forEach((wrap) => {
-    initFlatCarousel(wrap, { onActiveChange: setActiveVideoPreview });
-  });
+  if (document.querySelector('.pv-carousel-flat')) {
+    const onCarouselTap = (item) => handleCarouselTap(item, openLightbox);
+    document.querySelectorAll('.pv-carousel-flat:not(.pv-carousel-video)').forEach((wrap) => {
+      initFlatCarousel(wrap, { onTap: onCarouselTap });
+    });
+    document.querySelectorAll('.pv-carousel-video').forEach((wrap) => {
+      initFlatCarousel(wrap, { onActiveChange: setActiveVideoPreview });
+    });
+  }
   document.querySelectorAll('.pv-carousel-3d').forEach(initCarousel3D);
-
-  if (lightboxClose) lightboxClose.addEventListener('click', () => lightbox.classList.remove('is-open'));
-  if (lightbox) lightbox.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('is-open'); });
 }
 
 if (document.readyState === 'loading') {
