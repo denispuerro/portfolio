@@ -299,10 +299,7 @@ function buildCarouselItems(container, images, type, { eagerCount = 8 } = {}) {
     const fallbackAttr = fallbacks.length
       ? ` data-src-fallbacks="${fallbacks.map(encodeURI).join('|')}"`
       : '';
-    const eager = index < eagerCount;
-    const imgTag = eager
-      ? `<img src="${primary}" alt="${alt}" decoding="async" fetchpriority="${index === 0 ? 'high' : 'auto'}"${fallbackAttr}>`
-      : `<img data-src="${primary}" alt="${alt}" decoding="async"${fallbackAttr}>`;
+    const imgTag = `<img src="${primary}" alt="${alt}" decoding="async" fetchpriority="${index === 0 ? 'high' : 'auto'}"${fallbackAttr}>`;
     return `<div class="pv-carousel-item" data-type="${type}">${imgTag}</div>`;
   }).join('');
 }

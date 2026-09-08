@@ -789,16 +789,12 @@ body.design-mode .custom-cursor { width: 50px; height: 50px; background: url('da
   height: 100%;
   object-fit: cover;
   object-position: center;
-  opacity: 0.35;
-  filter: blur(6px);
-  transition: opacity 0.35s ease, filter 0.35s ease;
+  opacity: 1;
+  filter: none;
 }
 
 .photo-zone .pv-gallery-item img {
   object-fit: cover;
-  opacity: 0.92;
-  filter: none;
-  transition: opacity 0.2s ease;
 }
 
 .video-zone .pv-gallery-item img {
@@ -1070,9 +1066,8 @@ body.design-mode .custom-cursor { width: 50px; height: 50px; background: url('da
   object-fit: cover;
   display: block;
   opacity: 1;
-  filter: blur(10px) saturate(0.85);
-  transform: scale(1.02);
-  transition: filter 0.35s ease, transform 0.35s ease, opacity 0.35s ease;
+  filter: none;
+  transform: none;
 }
 
 .pv-carousel-flat .pv-carousel-item img.is-ready {

@@ -1,25 +1,4 @@
 const FORMATS = ['portrait', 'landscape', 'square', 'wide'];
-const MAX_CONCURRENT_LOADS = 4;
-
-let activeLoads = 0;
-const pendingLoads = [];
-
-function scheduleGalleryLoad(img, loader) {
-  pendingLoads.push({ img, loader });
-  drainGalleryLoadQueue();
-}
-
-function drainGalleryLoadQueue() {
-  while (activeLoads < MAX_CONCURRENT_LOADS && pendingLoads.length) {
-    const job = pendingLoads.shift();
-    if (!job?.img || job.img.classList.contains('is-ready')) continue;
-    activeLoads += 1;
-    job.loader(() => {
-      activeLoads -= 1;
-      drainGalleryLoadQueue();
-    });
-  }
-}
 
 function pickNextFormat(...avoid) {
   const blocked = new Set(avoid.filter(Boolean));
@@ -170,13 +149,7 @@ function renderGalleryItem(item) {
     formatLocked,
   ].filter(Boolean).join(' ');
 
-  // Toujours lazy : data-src pour limiter le débit réseau au scroll
-  const useDataSrc = Boolean(item.thumbFallbacks?.length || item.src);
-  const imgAttrs = useDataSrc
-    ? `data-src="${escapeHtml(item.src)}" loading="lazy"`
-    : `src="${escapeHtml(item.src)}"`;
-
-  const imgHtml = `<img ${imgAttrs} alt="${escapeHtml(item.alt || '')}" decoding="async">`;
+  const imgHtml = `<img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt || '')}" decoding="async" loading="eager">`;
   const mediaHtml = type === 'video'
     ? `<div class="pv-gallery-video-media">${imgHtml}</div>`
     : imgHtml;
@@ -235,15 +208,17 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
     onDone?.();
     return;
   }
-  if (img.dataset.loading === 'true') return;
+  if (img.dataset.loading === 'true') {
+    onDone?.();
+    return;
+  }
 
   const item = img.closest('.pv-gallery-item, .pv-carousel-item');
-  const pending = img.getAttribute('data-src');
   const currentSrc = img.getAttribute('src') || '';
   const extraRaw = item?.dataset.type === 'video'
     ? item.dataset.thumbFallbacks
     : item.dataset.srcFallbacks;
-  let urls = [...new Set([pending || currentSrc, ...(extraRaw || '').split('|')].filter(Boolean))];
+  let urls = [...new Set([currentSrc, ...(extraRaw || '').split('|')].filter(Boolean))];
 
   if (skipCurrent && currentSrc) {
     urls = urls.filter((url) => url !== currentSrc);
@@ -254,7 +229,6 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
     return;
   }
 
-  if (pending) img.removeAttribute('data-src');
   img.dataset.loading = 'true';
 
   let index = 0;
@@ -287,19 +261,8 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
   tryNext();
 }
 
-function queueGalleryImage(img) {
-  if (!img || img.classList.contains('is-ready') || img.dataset.queued === 'true') return;
-  img.dataset.queued = 'true';
-  scheduleGalleryLoad(img, (done) => loadGalleryImage(img, { onDone: done }));
-}
-
 function bindGalleryImage(img) {
   if (!img || img.classList.contains('is-ready')) return;
-
-  if (img.getAttribute('data-src') && !img.getAttribute('src')) {
-    queueGalleryImage(img);
-    return;
-  }
 
   if (img.complete && img.naturalWidth > 0) {
     revealGalleryImage(img);
@@ -310,21 +273,8 @@ function bindGalleryImage(img) {
   img.addEventListener('error', () => loadGalleryImage(img, { skipCurrent: true }), { once: true });
 }
 
-function observeGalleryImages(track) {
-  if (!('IntersectionObserver' in window)) {
-    track.querySelectorAll('img:not(.is-ready)').forEach((img) => queueGalleryImage(img));
-    return;
-  }
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      queueGalleryImage(entry.target);
-      observer.unobserve(entry.target);
-    });
-  }, { rootMargin: '180px 0px' });
-
-  track.querySelectorAll('img:not(.is-ready)').forEach((img) => observer.observe(img));
+function loadAllGalleryImages(track) {
+  track.querySelectorAll('img').forEach(bindGalleryImage);
 }
 
 function stopVideoPreview(item) {
@@ -378,7 +328,7 @@ export function initGalleryRows(gallery, handlers = {}) {
     const speed = Number(row.dataset.speed || 40);
     row.style.setProperty('--gallery-duration', `${speed}s`);
 
-    const loadVisibleImages = () => observeGalleryImages(track);
+    const loadVisibleImages = () => loadAllGalleryImages(track);
 
     if (reducedMotion) {
       row.classList.add('is-static');
