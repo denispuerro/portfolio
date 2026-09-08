@@ -1,4 +1,25 @@
 const FORMATS = ['portrait', 'landscape', 'square', 'wide'];
+const MAX_CONCURRENT_LOADS = 4;
+
+let activeLoads = 0;
+const pendingLoads = [];
+
+function scheduleGalleryLoad(img, loader) {
+  pendingLoads.push({ img, loader });
+  drainGalleryLoadQueue();
+}
+
+function drainGalleryLoadQueue() {
+  while (activeLoads < MAX_CONCURRENT_LOADS && pendingLoads.length) {
+    const job = pendingLoads.shift();
+    if (!job?.img || job.img.classList.contains('is-ready')) continue;
+    activeLoads += 1;
+    job.loader(() => {
+      activeLoads -= 1;
+      drainGalleryLoadQueue();
+    });
+  }
+}
 
 function pickNextFormat(...avoid) {
   const blocked = new Set(avoid.filter(Boolean));
@@ -149,10 +170,10 @@ function renderGalleryItem(item) {
     formatLocked,
   ].filter(Boolean).join(' ');
 
-  // src direct pour les fichiers locaux (photos, web, graphisme) — data-src seulement pour YouTube
-  const useDataSrc = Boolean(item.thumbFallbacks?.length || !item.eager);
+  // Toujours lazy : data-src pour limiter le débit réseau au scroll
+  const useDataSrc = Boolean(item.thumbFallbacks?.length || item.src);
   const imgAttrs = useDataSrc
-    ? `data-src="${escapeHtml(item.src)}"${item.eager ? '' : ' loading="lazy"'}`
+    ? `data-src="${escapeHtml(item.src)}" loading="lazy"`
     : `src="${escapeHtml(item.src)}"`;
 
   const imgHtml = `<img ${imgAttrs} alt="${escapeHtml(item.alt || '')}" decoding="async">`;
@@ -209,8 +230,12 @@ function revealGalleryImage(img) {
     }
 }
 
-function loadGalleryImage(img, { skipCurrent = false } = {}) {
-  if (!img || img.classList.contains('is-ready') || img.dataset.loading === 'true') return;
+function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
+  if (!img || img.classList.contains('is-ready')) {
+    onDone?.();
+    return;
+  }
+  if (img.dataset.loading === 'true') return;
 
   const item = img.closest('.pv-gallery-item, .pv-carousel-item');
   const pending = img.getAttribute('data-src');
@@ -224,15 +249,23 @@ function loadGalleryImage(img, { skipCurrent = false } = {}) {
     urls = urls.filter((url) => url !== currentSrc);
   }
 
-  if (!urls.length) return;
+  if (!urls.length) {
+    onDone?.();
+    return;
+  }
 
   if (pending) img.removeAttribute('data-src');
   img.dataset.loading = 'true';
 
   let index = 0;
+  const finish = () => {
+    img.dataset.loading = 'false';
+    onDone?.();
+  };
+
   const tryNext = () => {
     if (index >= urls.length) {
-      img.dataset.loading = 'false';
+      finish();
       return;
     }
     const nextUrl = urls[index];
@@ -241,6 +274,7 @@ function loadGalleryImage(img, { skipCurrent = false } = {}) {
       img.onload = null;
       img.onerror = null;
       revealGalleryImage(img);
+      finish();
     };
     img.onerror = () => {
       img.onload = null;
@@ -253,11 +287,17 @@ function loadGalleryImage(img, { skipCurrent = false } = {}) {
   tryNext();
 }
 
+function queueGalleryImage(img) {
+  if (!img || img.classList.contains('is-ready') || img.dataset.queued === 'true') return;
+  img.dataset.queued = 'true';
+  scheduleGalleryLoad(img, (done) => loadGalleryImage(img, { onDone: done }));
+}
+
 function bindGalleryImage(img) {
   if (!img || img.classList.contains('is-ready')) return;
 
   if (img.getAttribute('data-src') && !img.getAttribute('src')) {
-    loadGalleryImage(img);
+    queueGalleryImage(img);
     return;
   }
 
@@ -268,6 +308,23 @@ function bindGalleryImage(img) {
 
   img.addEventListener('load', () => revealGalleryImage(img), { once: true });
   img.addEventListener('error', () => loadGalleryImage(img, { skipCurrent: true }), { once: true });
+}
+
+function observeGalleryImages(track) {
+  if (!('IntersectionObserver' in window)) {
+    track.querySelectorAll('img:not(.is-ready)').forEach((img) => queueGalleryImage(img));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      queueGalleryImage(entry.target);
+      observer.unobserve(entry.target);
+    });
+  }, { rootMargin: '180px 0px' });
+
+  track.querySelectorAll('img:not(.is-ready)').forEach((img) => observer.observe(img));
 }
 
 function stopVideoPreview(item) {
@@ -314,8 +371,6 @@ export function initGalleryRows(gallery, handlers = {}) {
   const rows = gallery.querySelectorAll('.pv-gallery-row');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const eagerGallery = ['photos', 'video', 'design', 'web'].includes(gallery.dataset.gallery);
-
   rows.forEach((row) => {
     const track = row.querySelector('.pv-gallery-track');
     if (!track) return;
@@ -323,14 +378,7 @@ export function initGalleryRows(gallery, handlers = {}) {
     const speed = Number(row.dataset.speed || 40);
     row.style.setProperty('--gallery-duration', `${speed}s`);
 
-    const loadVisibleImages = () => {
-      track.querySelectorAll('img:not(.is-ready)').forEach((img) => bindGalleryImage(img));
-    };
-
-    if (eagerGallery) loadVisibleImages();
-    else track.querySelectorAll('img').forEach((img, index) => {
-      if (index < 6) bindGalleryImage(img);
-    });
+    const loadVisibleImages = () => observeGalleryImages(track);
 
     if (reducedMotion) {
       row.classList.add('is-static');
@@ -349,10 +397,11 @@ export function initGalleryRows(gallery, handlers = {}) {
           row.classList.toggle('is-visible', entry.isIntersecting);
           if (entry.isIntersecting) loadVisibleImages();
         });
-      }, { rootMargin: '200px 0px' });
+      }, { rootMargin: '240px 0px' });
       observer.observe(row);
     } else {
       row.classList.add('is-visible');
+      loadVisibleImages();
     }
   });
 
@@ -375,7 +424,7 @@ export function initGalleryRows(gallery, handlers = {}) {
         return;
       }
       const img = item.querySelector('img');
-      const src = img?.src || item.dataset.fullSrc || img?.getAttribute('data-src');
+      const src = item.dataset.fullSrc || img?.getAttribute('src') || img?.getAttribute('data-src');
       if (src) handlers.onImage?.(src);
     });
   });

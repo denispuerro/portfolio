@@ -4,53 +4,106 @@ import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
 const imagePattern = /\.(png|jpe?g|webp|gif)$/i;
+const variantSuffixPattern = /-(480|640|960|full)$/;
 
 const folderRules = {
-  'public/images/portfolio-photos': { maxWidth: 1920, quality: 82, format: 'webp' },
-  'public/images/graphisme': { maxWidth: 1600, quality: 84, format: 'webp' },
-  'public/images/site-web': { maxWidth: 1440, quality: 86, format: 'webp' },
-  'public/images/arriere-plan': { maxWidth: 1920, quality: 85, format: 'jpeg' },
+  'public/images/portfolio-photos': {
+    format: 'webp',
+    variants: [
+      { suffix: '', maxWidth: 640, quality: 78 },
+      { suffix: '-full', maxWidth: 1920, quality: 82 },
+    ],
+  },
+  'public/images/graphisme': {
+    format: 'webp',
+    variants: [
+      { suffix: '', maxWidth: 720, quality: 80 },
+      { suffix: '-full', maxWidth: 1600, quality: 84 },
+    ],
+  },
+  'public/images/site-web': {
+    format: 'webp',
+    variants: [
+      { suffix: '', maxWidth: 960, quality: 82 },
+      { suffix: '-full', maxWidth: 1440, quality: 86 },
+    ],
+  },
+  'public/images/arriere-plan': {
+    format: 'jpeg',
+    variants: [{ suffix: '', maxWidth: 1920, quality: 82 }],
+  },
 };
+
+function baseStem(fileName) {
+  const parsed = path.parse(fileName);
+  return parsed.name.replace(variantSuffixPattern, '');
+}
+
+function collectSourceFiles(folder) {
+  if (!fs.existsSync(folder)) return [];
+
+  const byStem = new Map();
+  for (const file of fs.readdirSync(folder)) {
+    if (!imagePattern.test(file)) continue;
+    const stem = baseStem(file);
+    const current = byStem.get(stem);
+    const fullPath = path.join(folder, file);
+    if (!current || fs.statSync(fullPath).mtimeMs >= fs.statSync(current).mtimeMs) {
+      byStem.set(stem, fullPath);
+    }
+  }
+  return [...byStem.values()];
+}
+
+async function writeVariant(inputPath, outPath, rule, variant) {
+  const tempPath = `${outPath}.tmp`;
+  let pipeline = sharp(inputPath, { failOn: 'none' });
+  const metadata = await pipeline.metadata();
+
+  if (metadata.width && metadata.width > variant.maxWidth) {
+    pipeline = pipeline.resize({ width: variant.maxWidth, withoutEnlargement: true });
+  }
+
+  if (rule.format === 'jpeg') {
+    await pipeline
+      .jpeg({ quality: variant.quality, mozjpeg: true, progressive: true })
+      .toFile(tempPath);
+  } else {
+    await pipeline
+      .webp({ quality: variant.quality, effort: 4, smartSubsample: true })
+      .toFile(tempPath);
+  }
+
+  fs.renameSync(tempPath, outPath);
+}
 
 export async function optimizeFolder(folder, rule) {
   if (!fs.existsSync(folder)) return { count: 0, savedBytes: 0 };
 
-  const entries = fs.readdirSync(folder).filter((file) => imagePattern.test(file));
+  const sources = collectSourceFiles(folder);
   let count = 0;
   let savedBytes = 0;
 
-  for (const file of entries) {
-    const inputPath = path.join(folder, file);
+  for (const inputPath of sources) {
     const before = fs.statSync(inputPath).size;
-    const parsed = path.parse(inputPath);
-    const outExt = rule.format === 'jpeg' ? '.jpg' : '.webp';
-    const outPath = path.join(folder, `${parsed.name}${outExt}`);
-    const tempPath = `${outPath}.tmp`;
+    const stem = baseStem(path.basename(inputPath));
+    const ext = rule.format === 'jpeg' ? '.jpg' : '.webp';
 
-    let pipeline = sharp(inputPath, { failOn: 'none' });
-    const metadata = await pipeline.metadata();
-
-    if (metadata.width && metadata.width > rule.maxWidth) {
-      pipeline = pipeline.resize({ width: rule.maxWidth, withoutEnlargement: true });
+    for (const variant of rule.variants) {
+      const outPath = path.join(folder, `${stem}${variant.suffix}${ext}`);
+      await writeVariant(inputPath, outPath, rule, variant);
     }
 
-    if (rule.format === 'jpeg') {
-      await pipeline
-        .jpeg({ quality: rule.quality, mozjpeg: true, progressive: true })
-        .toFile(tempPath);
-    } else {
-      await pipeline
-        .webp({ quality: rule.quality, effort: 5, smartSubsample: true })
-        .toFile(tempPath);
-    }
-
-    fs.renameSync(tempPath, outPath);
-    if (outPath !== inputPath && fs.existsSync(inputPath)) {
+    if (inputPath !== path.join(folder, `${stem}${ext}`)) {
       fs.unlinkSync(inputPath);
     }
 
-    const after = fs.statSync(outPath).size;
-    savedBytes += Math.max(0, before - after);
+    const variantBytes = rule.variants.reduce((sum, variant) => {
+      const outPath = path.join(folder, `${stem}${variant.suffix}${ext}`);
+      return sum + (fs.existsSync(outPath) ? fs.statSync(outPath).size : 0);
+    }, 0);
+
+    savedBytes += Math.max(0, before - variantBytes);
     count += 1;
   }
 

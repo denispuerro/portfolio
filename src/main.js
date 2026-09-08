@@ -11,7 +11,7 @@ import {
   pickRandomGalleryItem,
   splitAcrossRows,
 } from './gallery-rows.js';
-import { imageStemFromPath, resolveImageUrls } from './image-assets.js';
+import { imageStemFromPath, resolveImageUrls, resolveGalleryImageUrls } from './image-assets.js';
 
 // Portfolio carousels populated at init
 
@@ -74,13 +74,37 @@ function setupBackgrounds() {
 }
 
 function preloadBackgrounds() {
-  BACKGROUNDS.forEach(({ path, targets, priority }) => {
+  BACKGROUNDS.filter(({ priority }) => priority === 'high').forEach(({ path, targets }) => {
     const img = new Image();
-    if (priority === 'high' && 'fetchPriority' in img) img.fetchPriority = 'high';
+    if ('fetchPriority' in img) img.fetchPriority = 'high';
     img.decoding = 'async';
     img.onload = () => markBackgroundLoaded(targets);
     img.onerror = () => markBackgroundLoaded(targets);
     img.src = assetUrl(path);
+  });
+
+  const deferred = BACKGROUNDS.filter(({ priority }) => priority !== 'high');
+  if (!deferred.length || !('IntersectionObserver' in window)) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const bg = deferred.find(({ targets }) => targets.some((sel) => entry.target.matches(sel)));
+      if (!bg || bg.loaded) return;
+      bg.loaded = true;
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => markBackgroundLoaded(bg.targets);
+      img.onerror = () => markBackgroundLoaded(bg.targets);
+      img.src = assetUrl(bg.path);
+      observer.disconnect();
+    });
+  }, { rootMargin: '400px 0px' });
+
+  deferred.forEach(({ targets }) => {
+    targets.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => observer.observe(el));
+    });
   });
 }
 
@@ -339,39 +363,39 @@ function setActiveVideoPreview(items, activeIndex) {
   });
 }
 
-function buildImageGalleryItem(relativePath, altPrefix, { eager = false } = {}) {
-  const { src, fallbacks } = resolveImageUrls(relativePath, assetUrl);
+function buildImageGalleryItem(relativePath, altPrefix) {
+  const { src, fullSrc, fallbacks } = resolveGalleryImageUrls(relativePath, assetUrl);
   const fileName = imageStemFromPath(relativePath);
   return {
     type: 'image',
     src,
+    fullSrc,
     srcFallbacks: fallbacks,
     alt: `${altPrefix} ${fileName}`,
-    eager,
   };
 }
 
 function buildPhotoGalleryItems(images) {
-  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Photo', { eager: true }));
+  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Photo'));
 }
 
 function buildDesignGalleryItems(images) {
-  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Graphisme', { eager: true }));
+  return preferWebpAssets(images).map((src) => buildImageGalleryItem(src, 'Graphisme'));
 }
 
 function buildWebGalleryItems(projects) {
   return projects.map(({ name, image, url }) => {
-    const { src, fallbacks } = resolveImageUrls(image, assetUrl);
+    const { src, fullSrc, fallbacks } = resolveGalleryImageUrls(image, assetUrl);
     return {
       type: 'web',
       src,
+      fullSrc,
       srcFallbacks: fallbacks,
       url,
       label: name,
       alt: name,
       format: 'landscape',
       formatLocked: true,
-      eager: true,
     };
   });
 }
@@ -383,14 +407,13 @@ function buildVideoGalleryItems(projects) {
     const thumbs = youtubeThumbCandidates(id, { isShort });
     return {
       type: 'video',
-      src: thumbs[0],
-      thumbFallbacks: thumbs.slice(1),
+      src: thumbs[1] || thumbs[0],
+      thumbFallbacks: thumbs.filter((_, index) => index !== 1),
       url: youtubeWatchUrl(id),
       videoId: id,
       alt: title,
       format: isShort ? 'portrait' : 'landscape',
       formatLocked: true,
-      eager: true,
     };
   });
 }
@@ -414,7 +437,8 @@ function createLightboxController(lightbox, lightboxImg) {
   function open(src, preserveScrollY) {
     if (!src || !lightbox || !lightboxImg) return;
     savedScrollY = typeof preserveScrollY === 'number' ? preserveScrollY : window.scrollY;
-    lightboxImg.setAttribute('src', src);
+    const fullSrc = src.replace(/(\.webp|\.png|\.jpe?g)(?=($|\?))/i, '-full$1');
+    lightboxImg.setAttribute('src', fullSrc !== src ? fullSrc : src);
     lightbox.classList.add('is-open');
     document.body.classList.add('is-lightbox-open');
     document.body.style.top = `-${savedScrollY}px`;

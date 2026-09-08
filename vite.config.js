@@ -16,9 +16,6 @@ const onNetworkVolume = process.cwd().startsWith('/Volumes/');
 
 const BACKGROUND_ASSETS = [
   { href: 'images/arriere-plan/background-univers-denis.jpg', type: 'image/jpeg', fetchpriority: 'high' },
-  { href: 'images/arriere-plan/background-explore.jpg', type: 'image/jpeg' },
-  { href: 'images/arriere-plan/background-appli.jpg', type: 'image/jpeg' },
-  { href: 'images/arriere-plan/background-graphic-design.jpg', type: 'image/jpeg' },
 ];
 
 export default defineConfig({

@@ -35,6 +35,7 @@ function listPublicImages(folder) {
 
   return files.filter((file) => {
     const { name, ext } = path.parse(file);
+    if (/-(480|640|960|full)$/i.test(name)) return false;
     if (webpStems.has(name) && ext.toLowerCase() !== '.webp') return false;
     return true;
   });
