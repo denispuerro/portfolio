@@ -1,4 +1,35 @@
 const FORMATS = ['portrait', 'landscape', 'square', 'wide'];
+const MOBILE_QUERY = '(max-width: 768px)';
+const MAX_LOADS_MOBILE = 3;
+const MAX_LOADS_DESKTOP = 6;
+
+let activeLoads = 0;
+const pendingLoads = [];
+
+function isMobileViewport() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function maxConcurrentLoads() {
+  return isMobileViewport() ? MAX_LOADS_MOBILE : MAX_LOADS_DESKTOP;
+}
+
+function scheduleGalleryLoad(img, loader) {
+  pendingLoads.push({ img, loader });
+  drainGalleryLoadQueue();
+}
+
+function drainGalleryLoadQueue() {
+  while (activeLoads < maxConcurrentLoads() && pendingLoads.length) {
+    const job = pendingLoads.shift();
+    if (!job?.img || job.img.classList.contains('is-ready')) continue;
+    activeLoads += 1;
+    job.loader(() => {
+      activeLoads -= 1;
+      drainGalleryLoadQueue();
+    });
+  }
+}
 
 function pickNextFormat(...avoid) {
   const blocked = new Set(avoid.filter(Boolean));
@@ -112,7 +143,7 @@ export function splitVideoRowsBalanced(items, rowCount) {
   return splitAcrossRows(interleaved, rowCount);
 }
 
-function renderGalleryItem(item) {
+function renderGalleryItem(item, { eager = false } = {}) {
   const format = item.format || 'landscape';
   const type = item.type || 'image';
   const showLabel = item.label && type !== 'video';
@@ -130,7 +161,12 @@ function renderGalleryItem(item) {
     formatLocked,
   ].filter(Boolean).join(' ');
 
-  const imgHtml = `<img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt || '')}" decoding="async" loading="eager">`;
+  const lazyImage = type === 'image' && !eager;
+  const imgAttrs = lazyImage
+    ? `data-src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt || '')}" decoding="async" loading="lazy"`
+    : `src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt || '')}" decoding="async"${eager ? ' fetchpriority="high"' : ''}`;
+
+  const imgHtml = `<img ${imgAttrs}>`;
   const mediaHtml = type === 'video'
     ? `<div class="pv-gallery-video-media">${imgHtml}</div>`
     : imgHtml;
@@ -143,7 +179,11 @@ function renderGalleryItem(item) {
   );
 }
 
-export function buildGalleryRows(container, rowItems, { duplicate = true, alternateDuplicateFormats = false } = {}) {
+export function buildGalleryRows(container, rowItems, {
+  duplicate = true,
+  alternateDuplicateFormats = false,
+  eagerFirst = 0,
+} = {}) {
   const rows = container.querySelectorAll('.pv-gallery-row');
   rows.forEach((row, rowIndex) => {
     const items = rowItems[rowIndex] || [];
@@ -152,7 +192,7 @@ export function buildGalleryRows(container, rowItems, { duplicate = true, altern
         ? [...items, ...duplicateRowWithMixedFormats(items)]
         : [...items, ...items])
       : items;
-    row.innerHTML = `<div class="pv-gallery-track">${trackItems.map((item) => renderGalleryItem(item)).join('')}</div>`;
+    row.innerHTML = `<div class="pv-gallery-track">${trackItems.map((item, index) => renderGalleryItem(item, { eager: rowIndex === 0 && index < eagerFirst })).join('')}</div>`;
   });
 }
 
@@ -178,10 +218,10 @@ function revealGalleryImage(img) {
   if (!img?.naturalWidth) return;
   img.classList.add('is-ready');
   img.dataset.loading = 'false';
-    const galleryKind = img.closest('.pv-gallery')?.dataset.gallery;
-    if (!['photos', 'video', 'web', 'design'].includes(galleryKind)) {
-      applyImageFormat(img);
-    }
+  const galleryKind = img.closest('.pv-gallery')?.dataset.gallery;
+  if (!['photos', 'video', 'web', 'design'].includes(galleryKind)) {
+    applyImageFormat(img);
+  }
 }
 
 function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
@@ -189,17 +229,15 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
     onDone?.();
     return;
   }
-  if (img.dataset.loading === 'true') {
-    onDone?.();
-    return;
-  }
+  if (img.dataset.loading === 'true') return;
 
   const item = img.closest('.pv-gallery-item, .pv-carousel-item');
+  const pending = img.getAttribute('data-src');
   const currentSrc = img.getAttribute('src') || '';
   const extraRaw = item?.dataset.type === 'video'
     ? item.dataset.thumbFallbacks
     : item.dataset.srcFallbacks;
-  let urls = [...new Set([currentSrc, ...(extraRaw || '').split('|')].filter(Boolean))];
+  let urls = [...new Set([pending, currentSrc, ...(extraRaw || '').split('|')].filter(Boolean))];
 
   if (skipCurrent && currentSrc) {
     urls = urls.filter((url) => url !== currentSrc);
@@ -210,6 +248,7 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
     return;
   }
 
+  if (pending) img.removeAttribute('data-src');
   img.dataset.loading = 'true';
 
   let index = 0;
@@ -242,8 +281,19 @@ function loadGalleryImage(img, { skipCurrent = false, onDone } = {}) {
   tryNext();
 }
 
+function queueGalleryImage(img) {
+  if (!img || img.classList.contains('is-ready') || img.dataset.queued === 'true') return;
+  img.dataset.queued = 'true';
+  scheduleGalleryLoad(img, (done) => loadGalleryImage(img, { onDone: done }));
+}
+
 function bindGalleryImage(img) {
   if (!img || img.classList.contains('is-ready')) return;
+
+  if (img.getAttribute('data-src') && !img.getAttribute('src')) {
+    queueGalleryImage(img);
+    return;
+  }
 
   if (img.complete && img.naturalWidth > 0) {
     revealGalleryImage(img);
@@ -254,8 +304,22 @@ function bindGalleryImage(img) {
   img.addEventListener('error', () => loadGalleryImage(img, { skipCurrent: true }), { once: true });
 }
 
-function loadAllGalleryImages(track) {
-  track.querySelectorAll('img').forEach(bindGalleryImage);
+function observeGalleryImages(track) {
+  if (!('IntersectionObserver' in window)) {
+    track.querySelectorAll('img:not(.is-ready)').forEach((img) => queueGalleryImage(img));
+    return;
+  }
+
+  const margin = isMobileViewport() ? '120px 0px' : '200px 0px';
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      queueGalleryImage(entry.target);
+      observer.unobserve(entry.target);
+    });
+  }, { rootMargin: margin });
+
+  track.querySelectorAll('img:not(.is-ready)').forEach((img) => observer.observe(img));
 }
 
 function stopVideoPreview(item) {
@@ -301,6 +365,8 @@ function initVideoGalleryPreviews(gallery) {
 export function initGalleryRows(gallery, handlers = {}) {
   const rows = gallery.querySelectorAll('.pv-gallery-row');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mobile = isMobileViewport();
+  const kind = gallery.dataset.gallery;
 
   rows.forEach((row) => {
     const track = row.querySelector('.pv-gallery-track');
@@ -309,9 +375,9 @@ export function initGalleryRows(gallery, handlers = {}) {
     const speed = Number(row.dataset.speed || 40);
     row.style.setProperty('--gallery-duration', `${speed}s`);
 
-    const loadVisibleImages = () => loadAllGalleryImages(track);
+    const loadVisibleImages = () => observeGalleryImages(track);
 
-    if (reducedMotion) {
+    if (reducedMotion || (mobile && kind === 'photos')) {
       row.classList.add('is-static');
       loadVisibleImages();
       return;
@@ -328,7 +394,7 @@ export function initGalleryRows(gallery, handlers = {}) {
           row.classList.toggle('is-visible', entry.isIntersecting);
           if (entry.isIntersecting) loadVisibleImages();
         });
-      }, { rootMargin: '240px 0px' });
+      }, { rootMargin: mobile ? '160px 0px' : '240px 0px' });
       observer.observe(row);
     } else {
       row.classList.add('is-visible');
@@ -336,7 +402,7 @@ export function initGalleryRows(gallery, handlers = {}) {
     }
   });
 
-  if (!['photos', 'video', 'web', 'design'].includes(gallery.dataset.gallery)) {
+  if (!['photos', 'video', 'web', 'design'].includes(kind)) {
     applyGalleryAspectRatios(gallery);
   }
 
@@ -360,7 +426,7 @@ export function initGalleryRows(gallery, handlers = {}) {
     });
   });
 
-  if (gallery.dataset.gallery === 'video') {
+  if (kind === 'video') {
     initVideoGalleryPreviews(gallery);
   }
 }
