@@ -16,10 +16,6 @@ export const videoProjects = [
     url: 'https://youtube.com/shorts/HnpEIem4x7c',
   },
   {
-    title: 'Actu région Suisse Romande',
-    url: 'https://youtube.com/shorts/wjCv8rGVqtk',
-  },
-  {
     title: 'Concept Date Car — Portfolio D. Puerro',
     url: 'https://youtu.be/dwhgyJvMvRo',
   },
