@@ -425,13 +425,7 @@ function populateGallery(gallery, items, rowCount, { mixFormats = false, mixVide
     rowItems = splitAcrossRows(expandItems(items, minPerRow), rowCount);
   }
   if (mixFormats) rowItems = assignMixedDisplayFormats(rowItems);
-  const mobile = window.matchMedia('(max-width: 768px)').matches;
-  const kind = gallery.dataset.gallery;
-  buildGalleryRows(gallery, rowItems, {
-    alternateDuplicateFormats: mixFormats,
-    duplicate: !(mobile && kind === 'photos'),
-    eagerFirst: kind === 'photos' ? (mobile ? 4 : 8) : 0,
-  });
+  buildGalleryRows(gallery, rowItems, { alternateDuplicateFormats: mixFormats });
 }
 
 function toLightboxSrc(src) {
