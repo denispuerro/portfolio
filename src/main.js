@@ -428,14 +428,24 @@ function populateGallery(gallery, items, rowCount, { mixFormats = false, mixVide
   buildGalleryRows(gallery, rowItems, { alternateDuplicateFormats: mixFormats });
 }
 
+function toLightboxSrc(src) {
+  if (!src) return src;
+  if (/-full\.(webp|png|jpe?g)(\?|#|$)/i.test(src)) return src;
+  return src.replace(/(\.webp|\.png|\.jpe?g)(?=($|\?|#))/i, '-full$1');
+}
+
 function createLightboxController(lightbox, lightboxImg) {
   let savedScrollY = 0;
 
   function open(src, preserveScrollY) {
     if (!src || !lightbox || !lightboxImg) return;
     savedScrollY = typeof preserveScrollY === 'number' ? preserveScrollY : window.scrollY;
-    const fullSrc = src.replace(/(\.webp|\.png|\.jpe?g)(?=($|\?))/i, '-full$1');
-    lightboxImg.setAttribute('src', fullSrc !== src ? fullSrc : src);
+    const fullSrc = toLightboxSrc(src);
+    lightboxImg.onerror = () => {
+      lightboxImg.onerror = null;
+      if (fullSrc !== src) lightboxImg.src = src;
+    };
+    lightboxImg.setAttribute('src', fullSrc);
     lightbox.classList.add('is-open');
     document.body.classList.add('is-lightbox-open');
     document.body.style.top = `-${savedScrollY}px`;
