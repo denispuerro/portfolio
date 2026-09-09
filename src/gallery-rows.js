@@ -84,8 +84,8 @@ function shuffleArray(items) {
   return array;
 }
 
-/** Alterne portrait / paysage dans chaque rangée (vidéos Shorts vs horizontales). */
-export function splitVideoRowsBalanced(items, rowCount, minPerRow = 6) {
+/** Alterne portrait / paysage — chaque vidéo n'apparaît qu'une fois. */
+export function splitVideoRowsBalanced(items, rowCount) {
   const portraits = shuffleArray(items.filter((item) => item.format === 'portrait'));
   const landscapes = shuffleArray(items.filter((item) => item.format === 'landscape'));
 
@@ -93,42 +93,23 @@ export function splitVideoRowsBalanced(items, rowCount, minPerRow = 6) {
     return Array.from({ length: rowCount }, () => []);
   }
 
-  const rows = Array.from({ length: rowCount }, () => []);
+  const interleaved = [];
+  let portraitIndex = 0;
+  let landscapeIndex = 0;
 
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-    let portraitIndex = rowIndex % Math.max(portraits.length, 1);
-    let landscapeIndex = rowIndex % Math.max(landscapes.length, 1);
-    let nextFormat = rowIndex % 2 === 0 ? 'portrait' : 'landscape';
-
-    while (rows[rowIndex].length < minPerRow) {
-      const lastFormat = rows[rowIndex][rows[rowIndex].length - 1]?.format;
-      let pickFormat = nextFormat;
-      if (lastFormat === pickFormat) {
-        pickFormat = pickFormat === 'portrait' ? 'landscape' : 'portrait';
-      }
-
-      let chosen = null;
-      if (pickFormat === 'portrait' && portraits.length) {
-        chosen = portraits[portraitIndex % portraits.length];
-        portraitIndex += 1;
-      } else if (pickFormat === 'landscape' && landscapes.length) {
-        chosen = landscapes[landscapeIndex % landscapes.length];
-        landscapeIndex += 1;
-      } else if (portraits.length) {
-        chosen = portraits[portraitIndex % portraits.length];
-        portraitIndex += 1;
-      } else if (landscapes.length) {
-        chosen = landscapes[landscapeIndex % landscapes.length];
-        landscapeIndex += 1;
-      }
-
-      if (!chosen) break;
-      rows[rowIndex].push({ ...chosen });
-      nextFormat = chosen.format === 'portrait' ? 'landscape' : 'portrait';
+  while (portraitIndex < portraits.length || landscapeIndex < landscapes.length) {
+    if (portraitIndex < portraits.length) {
+      interleaved.push({ ...portraits[portraitIndex] });
+      portraitIndex += 1;
+    }
+    if (landscapeIndex < landscapes.length) {
+      interleaved.push({ ...landscapes[landscapeIndex] });
+      landscapeIndex += 1;
     }
   }
 
-  return rows;
+  if (rowCount <= 1) return [interleaved];
+  return splitAcrossRows(interleaved, rowCount);
 }
 
 function renderGalleryItem(item) {

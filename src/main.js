@@ -420,7 +420,7 @@ function populateGallery(gallery, items, rowCount, { mixFormats = false, mixVide
   const minPerRow = Math.max(items.length, rowCount * 6);
   let rowItems;
   if (mixVideoFormats) {
-    rowItems = splitVideoRowsBalanced(items, rowCount, minPerRow);
+    rowItems = splitVideoRowsBalanced(items, rowCount);
   } else {
     rowItems = splitAcrossRows(expandItems(items, minPerRow), rowCount);
   }
