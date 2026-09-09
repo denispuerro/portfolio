@@ -525,6 +525,22 @@ function initGalleries({ openLightbox, closeLightbox }) {
   return { closeLightbox };
 }
 
+function initHeaderHideOnFooter() {
+  const header = document.querySelector('.pv-header');
+  const footer = document.querySelector('.pv-footer');
+  if (!header || !footer) return;
+
+  if (!('IntersectionObserver' in window)) {
+    return;
+  }
+
+  const observer = new IntersectionObserver(([entry]) => {
+    header.classList.toggle('is-hidden', entry.isIntersecting);
+  }, { threshold: 0, rootMargin: '-10% 0px 0px 0px' });
+
+  observer.observe(footer);
+}
+
 function initTransitionBlocks() {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -558,6 +574,7 @@ function initTransitionBlocks() {
 }
 
 function init() {
+  initHeaderHideOnFooter();
   initTransitionBlocks();
 
   const photoCarousel = document.querySelector('#motion-photos .pv-carousel-container');

@@ -34,6 +34,18 @@ body.is-lightbox-open {
   justify-content: space-between;
   padding: 1.25rem clamp(1.25rem, 4vw, 3rem);
   pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.35s ease, visibility 0.35s;
+}
+
+.pv-header.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-110%);
+}
+
+.pv-header.is-hidden .pv-header-logo,
+.pv-header.is-hidden .pv-header-cta {
+  pointer-events: none;
 }
 
 .pv-header-logo,
@@ -200,6 +212,11 @@ body.is-lightbox-open {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+}
+
+.pv-footer-contact a[href^="tel:"],
+.pv-footer-contact a[href^="mailto:"] {
+  -webkit-tap-highlight-color: rgba(249, 115, 22, 0.25);
 }
 
 .pv-footer-nav a,
